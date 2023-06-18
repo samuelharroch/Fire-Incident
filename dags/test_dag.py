@@ -5,6 +5,7 @@ from airflow.contrib.hooks.bigquery_hook import BigQueryHook
 from airflow.providers.google.cloud.operators.bigquery import BigQueryExecuteQueryOperator
 
 from tranform_plugin import transform_data
+from schema_plugins import dim_Alarm_schema, dim_Event_schema, dim_Authorities_schema, fact_Incident_schema
 
 from datetime import datetime
 import requests
@@ -12,6 +13,7 @@ from google.cloud import storage
 import logging
 import pandas as pd
 import json
+import time
 
 
 default_args = {
@@ -23,7 +25,7 @@ def fetch_and_save_data_to_gcs(ti):
     url = "https://data.cityofnewyork.us/resource/8m42-w767.json"
     params = {
         "$limit": 50000,  # Number of records per page
-        "$offset": 0,  # Initial offset
+        "$offset": 4450000,  # Initial offset
     }
 
     gcs_bucket_name = 'fire_datalake'
@@ -64,8 +66,6 @@ def fetch_and_save_data_to_gcs(ti):
 def _transform(ti):
     last_offset = ti.xcom_pull(key='last_offset', task_ids='fetch_and_save_data')
 
-    gcs_hook = GoogleCloudStorageHook()
-
     for offset in range(0, last_offset, 50000):
 
         # Retrieve data from GCS
@@ -83,35 +83,31 @@ def _transform(ti):
         transformed_gcs_bucket_name = 'fire_datalake'
 
         # incident_df
-        transformed_gcs_file_name = 'transformed_incident' + str(offset) + '.csv'
-        gcs_hook.upload(bucket_name=transformed_gcs_bucket_name, object_name=transformed_gcs_file_name,
-                        data=incident_df.to_csv(index=False), mime_type='text/csv')
-
+        transformed_gcs_file_name = gcs_bucket_name + '/' + 'transformed_incident' + str(offset) + '.csv'
+        incident_df.to_csv(transformed_gcs_file_name, index=False)
         logging.info(f"Transformed data saved to GCS bucket: gs://{transformed_gcs_bucket_name}/{transformed_gcs_file_name}")
 
         # alarm_df
-        transformed_gcs_file_name = 'transformed_alarm' + str(offset) + '.csv'
-        gcs_hook.upload(bucket_name=transformed_gcs_bucket_name, object_name=transformed_gcs_file_name,
-                        data=alarm_df.to_csv(index=False), mime_type='text/csv')
-
+        transformed_gcs_file_name = gcs_bucket_name + '/' + 'transformed_alarm' + str(offset) + '.csv'
+        alarm_df.to_csv(transformed_gcs_file_name, index=False)
         logging.info(
             f"Transformed data saved to GCS bucket: gs://{transformed_gcs_bucket_name}/{transformed_gcs_file_name}")
 
         # event_df
-        transformed_gcs_file_name = 'transformed_event' + str(offset) + '.csv'
-        gcs_hook.upload(bucket_name=transformed_gcs_bucket_name, object_name=transformed_gcs_file_name,
-                        data=event_df.to_csv(index=False), mime_type='text/csv')
+        transformed_gcs_file_name = gcs_bucket_name + '/' + 'transformed_event' + str(offset) + '.csv'
+        event_df.to_csv(transformed_gcs_file_name, index=False)
 
         logging.info(
             f"Transformed data saved to GCS bucket: gs://{transformed_gcs_bucket_name}/{transformed_gcs_file_name}")
 
         # authorities_df
-        transformed_gcs_file_name = 'transformed_authorities' + str(offset) + '.csv'
-        gcs_hook.upload(bucket_name=transformed_gcs_bucket_name, object_name=transformed_gcs_file_name,
-                        data=authorities_df.to_csv(index=False), mime_type='text/csv')
-
+        transformed_gcs_file_name = gcs_bucket_name + '/' + 'transformed_authorities' + str(offset) + '.csv'
+        authorities_df.to_csv(transformed_gcs_file_name, index=False)
         logging.info(
             f"Transformed data saved to GCS bucket: gs://{transformed_gcs_bucket_name}/{transformed_gcs_file_name}")
+
+        # Sleep for 3 second
+        time.sleep(3)
 
 
 def _insert_table_to_bigquery(ti, table_id, gcs_file_name_prefix,schema_fields):
@@ -144,6 +140,9 @@ def _insert_table_to_bigquery(ti, table_id, gcs_file_name_prefix,schema_fields):
             schema_fields=schema_fields,
             write_disposition='WRITE_APPEND'
         )
+
+        # Sleep for 2 second
+        time.sleep(2)
 
 
 with DAG('test_dag', schedule_interval='@daily', default_args=default_args, catchup=False) as dag:
@@ -187,13 +186,7 @@ with DAG('test_dag', schedule_interval='@daily', default_args=default_args, catc
         python_callable=_insert_table_to_bigquery,
         op_kwargs={'table_id': 'dim_Alarm',
                    'gcs_file_name_prefix': 'transformed_alarm',
-                   'schema_fields': [{'name': 'alarm_id', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'alarm_box_location', 'type': 'STRING', 'mode': 'NULLABLE'},
-                       {'name': 'alarm_box_number', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'alarm_box_borough', 'type': 'STRING', 'mode': 'REQUIRED'},
-                       {'name': 'alarm_source_description_tx', 'type': 'STRING', 'mode': 'REQUIRED'},
-                       {'name': 'alarm_level_index_description', 'type': 'STRING', 'mode': 'REQUIRED'},
-                       {'name': 'highest_alarm_level', 'type': 'STRING', 'mode': 'REQUIRED'}]}
+                   'schema_fields': dim_Alarm_schema}
     )
 
     insert_event_to_bigquery = PythonOperator(
@@ -201,19 +194,7 @@ with DAG('test_dag', schedule_interval='@daily', default_args=default_args, catc
         python_callable=_insert_table_to_bigquery,
         op_kwargs={'table_id': 'dim_Event',
                    'gcs_file_name_prefix': 'transformed_event',
-                   'schema_fields':[{'name': 'event_id', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'first_assignment_datetime', 'type': 'DATETIME', 'mode': 'NULLABLE'},
-                       {'name': 'first_activation_datetime', 'type': 'DATETIME', 'mode': 'NULLABLE'},
-                       {'name': 'first_on_scene_datetime', 'type': 'DATETIME', 'mode': 'NULLABLE'},
-                       {'name': 'incident_close_datetime', 'type': 'DATETIME', 'mode': 'REQUIRED'},
-                       {'name': 'dispatch_response_seconds_qy', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'incident_response_seconds_qy', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'incident_travel_tm_seconds_qy', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'valid_dispatch_rspns_time_indc', 'type': 'STRING', 'mode': 'REQUIRED'},
-                       {'name': 'valid_incident_rspns_time_indc', 'type': 'STRING', 'mode': 'REQUIRED'},
-                       {'name': 'engines_assigned_quantity', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'ladders_assigned_quantity', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'other_units_assigned_quantity', 'type': 'NUMERIC', 'mode': 'REQUIRED'}] }
+                   'schema_fields':dim_Event_schema }
     )
 
     insert_authorities_to_bigquery = PythonOperator(
@@ -221,13 +202,7 @@ with DAG('test_dag', schedule_interval='@daily', default_args=default_args, catc
         python_callable=_insert_table_to_bigquery,
         op_kwargs={'table_id': 'dim_Authorities',
                    'gcs_file_name_prefix': 'transformed_authorities',
-                   'schema_fields':[{'name': 'authorities_id', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'policeprecinct', 'type': 'NUMERIC', 'mode': 'NULLABLE'},
-                       {'name': 'incident_borough', 'type': 'STRING', 'mode': 'REQUIRED'},
-                       {'name': 'citycouncildistrict', 'type': 'NUMERIC', 'mode': 'NULLABLE'},
-                       {'name': 'communitydistrict', 'type': 'NUMERIC', 'mode': 'NULLABLE'},
-                       {'name': 'communityschooldistrict', 'type': 'NUMERIC', 'mode': 'NULLABLE'},
-                       {'name': 'congressionaldistrict', 'type': 'NUMERIC', 'mode': 'NULLABLE'}]}
+                   'schema_fields':dim_Authorities_schema}
     )
 
     insert_incident_to_bigquery = PythonOperator(
@@ -235,17 +210,7 @@ with DAG('test_dag', schedule_interval='@daily', default_args=default_args, catc
         python_callable=_insert_table_to_bigquery,
         op_kwargs={'table_id': 'fact_Incident',
                    'gcs_file_name_prefix': 'transformed_incident',
-                   'schema_fields': [{'name': 'starfire_incident_id', 'type': 'NUMERIC', 'mode': 'NULLABLE'},
-                       {'name': 'incident_datetime', 'type': 'DATETIME', 'mode': 'REQUIRED'},
-                       {'name': 'incident_close_datetime', 'type': 'DATETIME', 'mode': 'REQUIRED'},
-                       {'name': 'alarm_id', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'event_id', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'authorities_id', 'type': 'NUMERIC', 'mode': 'REQUIRED'},
-                       {'name': 'alarm_box_location', 'type': 'STRING', 'mode': 'NULLABLE'},
-                       {'name': 'incident_borough', 'type': 'STRING', 'mode': 'REQUIRED'},
-                       {'name': 'zipcode', 'type': 'NUMERIC', 'mode': 'NULLABLE'},
-                       {'name': 'incident_classification', 'type': 'STRING', 'mode': 'REQUIRED'},
-                       {'name': 'incident_classification_group', 'type': 'STRING', 'mode': 'REQUIRED'}]}
+                   'schema_fields': fact_Incident_schema}
     )
 
 
