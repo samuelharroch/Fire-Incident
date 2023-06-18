@@ -5,6 +5,11 @@ In order to collect correctly the data I used a GCS bucket as datalake [(datalak
 and a BigQuery dataset as the DWH [(DWH link)](console.cloud.google.com/bigquery?ws=!1m4!1m3!3m2!1sfire-incident-dispatch-data!2stest) . 
 The data pipelines is an Airflow DAG (named test_dag) which run daily [(web server link)](https://8cfc3e452d5c4f1186aec3a84e2e09a6-dot-us-central1.composer.googleusercontent.com/home). 
 
+### Environment 
+As mentioned, I used an Airflow Dag running on Google composer.
+The tag toggle is turned off (please try to avoid turning it on). 
+I gave permission to the team's email for datalake, DWH, Airflow webserver (check email invitation ).
+
 ## ETL description
 
 ![image](https://github.com/samuelharroch/Fire-Incident/assets/60176709/dcc97641-8ec4-4f5a-ab6a-fee46ffe2c9d)
