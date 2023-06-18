@@ -1,9 +1,9 @@
 # Fire-Incident
 
 ### Introduction
-In order to collect correctly the data I used a GCS bucket as datalake : [link](https://console.cloud.google.com/storage/browser/fire_datalake;tab=objects?project=fire-incident-dispatch-data&prefix=&forceOnObjectsSortingFiltering=false)
-and a BigQuery dataset as the DWH : [link]() . 
-The data pipelines is an Airflow DAG which run daily. 
+In order to collect correctly the data I used a GCS bucket as datalake [(datalake link)](https://console.cloud.google.com/storage/browser/fire_datalake;tab=objects?project=fire-incident-dispatch-data&prefix=&forceOnObjectsSortingFiltering=false)
+and a BigQuery dataset as the DWH [(DWH link)](console.cloud.google.com/bigquery?ws=!1m4!1m3!3m2!1sfire-incident-dispatch-data!2stest) . 
+The data pipelines is an Airflow DAG (named test_dag) which run daily [(web server link)](https://8cfc3e452d5c4f1186aec3a84e2e09a6-dot-us-central1.composer.googleusercontent.com/home). 
 
 ## ETL description
 
@@ -27,3 +27,10 @@ It's probably not the best practice but It was the best I could do at this momen
 
 ### insert_tables_to_bigquery tasks
 Then we are loading the data from CSV files to BigQuery tables directly (with the help of BigQueryHook.run_load )
+
+## Deliverables
+
+1. Code in dags (main code) and plugins folder (helper functions..) 
+2. SQL queries - in SQL folder, including create tables query and demonstration queries.
+3. Data model document  [(Data model link)](https://github.com/samuelharroch/Fire-Incident/blob/main/SQL/date_model.png) - The data modeling is based on Kimball dimensional modelling, according to the assignment requirements. Personally, as we are using bigquery for DWH, I think it was preferable to model the data into 1 dimension (1 table)...
+4. Description of the ETL pipeline - this README.md file

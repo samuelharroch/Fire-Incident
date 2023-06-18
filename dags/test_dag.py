@@ -5,7 +5,7 @@ from airflow.contrib.hooks.bigquery_hook import BigQueryHook
 from airflow.providers.google.cloud.operators.bigquery import BigQueryExecuteQueryOperator
 
 from tranform_plugin import transform_data
-from schema_plugins import dim_Alarm_schema, dim_Event_schema, dim_Authorities_schema, fact_Incident_schema
+from schema_plugin import dim_Alarm_schema, dim_Event_schema, dim_Authorities_schema, fact_Incident_schema
 
 from datetime import datetime
 import requests
@@ -25,7 +25,7 @@ def fetch_and_save_data_to_gcs(ti):
     url = "https://data.cityofnewyork.us/resource/8m42-w767.json"
     params = {
         "$limit": 50000,  # Number of records per page
-        "$offset": 4450000,  # Initial offset
+        "$offset": 0,  # Initial offset
     }
 
     gcs_bucket_name = 'fire_datalake'
@@ -87,11 +87,15 @@ def _transform(ti):
         incident_df.to_csv(transformed_gcs_file_name, index=False)
         logging.info(f"Transformed data saved to GCS bucket: gs://{transformed_gcs_bucket_name}/{transformed_gcs_file_name}")
 
+        time.sleep(3)
+
         # alarm_df
         transformed_gcs_file_name = gcs_bucket_name + '/' + 'transformed_alarm' + str(offset) + '.csv'
         alarm_df.to_csv(transformed_gcs_file_name, index=False)
         logging.info(
             f"Transformed data saved to GCS bucket: gs://{transformed_gcs_bucket_name}/{transformed_gcs_file_name}")
+
+        time.sleep(3)
 
         # event_df
         transformed_gcs_file_name = gcs_bucket_name + '/' + 'transformed_event' + str(offset) + '.csv'
@@ -99,6 +103,8 @@ def _transform(ti):
 
         logging.info(
             f"Transformed data saved to GCS bucket: gs://{transformed_gcs_bucket_name}/{transformed_gcs_file_name}")
+
+        time.sleep(3)
 
         # authorities_df
         transformed_gcs_file_name = gcs_bucket_name + '/' + 'transformed_authorities' + str(offset) + '.csv'
